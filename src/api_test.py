@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from google import genai
 
 
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-3.6-flash"
 
 TEST_PROMPT = (
     "Generate one short multiple-choice question about binary search trees, "
