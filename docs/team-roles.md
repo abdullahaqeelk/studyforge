@@ -24,7 +24,7 @@
 
 | 1 | Abdullah Aqeel Khan | @abdullahaqeelk | |
 
-| 2 | Mubeen Malik | @ | |
+| 2 | Mubeen Malik | @Mubeen-11 | |
 
 | 3 | Usman Irshad | @usman-irshad1 | |
 
