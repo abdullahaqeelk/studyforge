@@ -116,39 +116,26 @@ on top of development work.
 
 \---
 
+## 4. Sprint Schedule
 
+Each development sprint is a strict two-week iteration as mandated by the CEP
+brief. Sprint end dates are aligned to the deliverable deadlines published on
+LMS; each sprint starts exactly two weeks before its deliverable is due.
 
-\## 4. Sprint Schedule
+| Phase | Start | End | Deliverable |
+|-------|-------|-----|-------------|
+| Sprint 0 | 21 Sep 2026 | 11 Oct 2026 | P-1 Project Initialization (due 27 Sep) |
+| Sprint 1 | Mon 12 Oct 2026 | Sun 25 Oct 2026 | P-2 Sprint 1 Execution & Agile Artifacts |
+| Sprint 2 | Mon 26 Oct 2026 | Sun 08 Nov 2026 | — |
+| Sprint 3 | Mon 09 Nov 2026 | Sun 22 Nov 2026 | — |
+| Sprint 4 | Mon 23 Nov 2026 | Sun 06 Dec 2026 | — |
+| Report | 07 Dec 2026 | 13 Dec 2026 | P-3 Final Project Report |
+| Demo | 14 Dec 2026 | 20 Dec 2026 | P-4 Final Demo & Viva |
 
-
-
-Each sprint is a strict two-week iteration as mandated by the CEP brief.
-
-
-
-| Sprint | Start | End | Review \& Retrospective |
-
-|--------|-------|-----|------------------------|
-
-| Sprint 1 | Mon 22 Sep 2026 | Sun 05 Oct 2026 | Mon 06 Oct 2026 |
-
-| Sprint 2 | Mon 06 Oct 2026 | Sun 19 Oct 2026 | Mon 20 Oct 2026 |
-
-| Sprint 3 | Mon 20 Oct 2026 | Sun 02 Nov 2026 | Mon 03 Nov 2026 |
-
-| Sprint 4 | Mon 03 Nov 2026 | Sun 16 Nov 2026 | Mon 17 Nov 2026 |
-
-
-
-Adjust these dates to match the course timeline if the instructor has fixed
-
-sprint boundaries.
-
-
-
-\---
-
-
+Sprint 0 extends beyond the P-1 submission to cover team environment setup:
+Python and Git installation for all members, SSH access configuration, GitHub
+collaborator onboarding, and Jira account provisioning. Sprint 1 development
+begins 12 October.
 
 \## 5. Ceremonies
 

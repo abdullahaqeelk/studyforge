@@ -10,7 +10,7 @@ with the repository, tooling, and prompt-versioning discipline in place.
 
 
 
-\*\*Duration:\*\* 22 Sep 2026 — 05 Oct 2026 (2 weeks)
+\*\*Duration:\*\* 12 Oct 2026 — 25 Oct 2026 (2 weeks)
 
 \*\*Scrum Master:\*\* Abdullah Aqeel Khan
 
