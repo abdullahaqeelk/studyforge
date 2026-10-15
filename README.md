@@ -34,7 +34,13 @@ surfaced during testing.
 - Python 3.13
 - Google GenAI SDK (Gemini)
 - Streamlit (UI)
+- pypdf (document text extraction) · pytest (test suite)
 - Jira (sprint tracking) · GitHub (version control)
+
+The Gemini model identifier is read from `GEMINI_MODEL` rather than hardcoded.
+The provider retired the model originally targeted midway through Sprint 0; the
+reasoning behind moving it into configuration is recorded in
+[docs/ai-decisions.md](docs/ai-decisions.md).
 
 ## Team
 
@@ -53,8 +59,18 @@ Role rotation across all four sprints: [docs/team-roles.md](docs/team-roles.md)
 |---|---|
 | `src/` | Agent implementations, retrieval layer, API clients |
 | `prompts/` | Versioned prompt templates |
-| `docs/` | Roles, Definition of Done, architecture, sprint records |
+| `docs/` | Roles, Definition of Ready and Done, AI decisions, sprint records |
 | `tests/` | Unit, integration, and prompt tests |
+
+### Process documentation
+
+| Document | Purpose |
+|---|---|
+| [docs/definition-of-ready.md](docs/definition-of-ready.md) | Criteria a story must meet before entering a sprint |
+| [docs/definition-of-done.md](docs/definition-of-done.md) | Criteria a story must meet before being marked Done |
+| [docs/product-backlog.md](docs/product-backlog.md) | Full backlog across all four sprints |
+| [docs/sprint-1-backlog.md](docs/sprint-1-backlog.md) | Sprint 1 commitment, estimates, and allocation |
+| [docs/ai-decisions.md](docs/ai-decisions.md) | Decisions forced by AI platform behaviour and API limits |
 
 ## Setup
 
@@ -63,9 +79,39 @@ git clone git@github.com:abdullahaqeelk/studyforge.git
 cd studyforge
 pip install -r requirements.txt
 cp .env.example .env   # add your GOOGLE_API_KEY
-python src/api_test.py
+python src/api_test.py          # verify the API connection
+python -m pytest tests/ -v      # run the test suite
 ```
+
+## Contributing
+
+One branch per story, named `feature/SF-<id>-<short-description>`. Every change
+reaches `main` through a pull request reviewed by another team member. Commit
+messages begin with the Jira key (`SF-3 ...`) so that commits link back to the
+board automatically.
 
 ## Status
 
-Sprint 0 — project initialisation
+**Sprint 1 — core generation pipeline** (12–23 October 2026)
+
+Sprint goal: a user can upload a course document and receive AI-generated
+practice questions from its content, with repository, tooling, and
+prompt-versioning discipline in place.
+
+On `main`:
+
+- **SF-9** Centralised configuration and API error handling — five typed
+  failure modes distinguished behind one client factory
+- **SF-3** Course material upload and text extraction — per-page text with
+  page numbers preserved, 11 tests passing
+
+In progress: question generation (SF-4), prompt versioning (SF-6), test suite
+foundation (SF-7), pipeline orchestration (SF-8), Streamlit interface (SF-5).
+
+Retrieval, grading, and adaptive planning are deliberately out of scope for
+Sprint 1 and are scheduled for Sprints 2–4. Sprint 1 generates questions from
+raw extracted text, which means it carries no grounding guarantee; closing that
+gap is the purpose of Sprint 2.
+
+Live task status: [Jira board]https://abdullahaqeelk.atlassian.net/jira/software/projects/SF/boards/2?filter=&groupBy=none ·
+[docs/sprint-1-backlog.md](docs/sprint-1-backlog.md)
