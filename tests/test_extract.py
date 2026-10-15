@@ -76,6 +76,36 @@ def test_non_pdf_extension_raises(tmp_path):
         extract_pages(str(notes))
 
 
+def test_password_protected_pdf_raises(tmp_path):
+    """Regression for PR #1 review.
+
+    PdfReader() succeeds on an encrypted PDF; the failure only appears when the
+    page tree is touched, which previously happened outside the try block and
+    escaped as pypdf's FileNotDecryptedError rather than an ExtractionError.
+    """
+    locked = tmp_path / "locked.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    writer.encrypt("test-password")
+    with open(locked, "wb") as handle:
+        writer.write(handle)
+
+    with pytest.raises(ExtractionError, match="password-protected"):
+        extract_pages(str(locked))
+
+
+def test_password_protected_pdf_raises_in_page_count(tmp_path):
+    locked = tmp_path / "locked.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    writer.encrypt("test-password")
+    with open(locked, "wb") as handle:
+        writer.write(handle)
+
+    with pytest.raises(ExtractionError, match="password-protected"):
+        page_count(str(locked))
+
+
 def test_file_named_pdf_but_not_a_pdf_raises(tmp_path):
     """The extension check alone is not enough — the content must parse too."""
     fake = tmp_path / "fake.pdf"

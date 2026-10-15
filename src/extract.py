@@ -60,10 +60,27 @@ def extract_pages(pdf_path: str) -> list[dict]:
     except (PdfReadError, OSError, ValueError) as exc:
         raise ExtractionError(
             f"'{os.path.basename(pdf_path)}' could not be read as a PDF. "
-            "The file may be corrupt or password-protected."
+            "The file may be corrupt."
         ) from exc
 
-    if len(reader.pages) == 0:
+    # Constructing the reader succeeds for an encrypted PDF; the failure only
+    # surfaces when the page tree is touched. Check explicitly so the caller
+    # gets a message naming the real problem rather than a decryption error.
+    if reader.is_encrypted:
+        raise ExtractionError(
+            f"'{os.path.basename(pdf_path)}' is password-protected. "
+            "Remove the password and upload the file again."
+        )
+
+    try:
+        total_pages = len(reader.pages)
+    except (PdfReadError, OSError, ValueError) as exc:
+        raise ExtractionError(
+            f"The page structure of '{os.path.basename(pdf_path)}' could not "
+            "be read. The file may be corrupt."
+        ) from exc
+
+    if total_pages == 0:
         raise ExtractionError(
             f"'{os.path.basename(pdf_path)}' contains no pages."
         )
@@ -91,7 +108,14 @@ def page_count(pdf_path: str) -> int:
     if not os.path.isfile(pdf_path):
         raise ExtractionError(f"No such file: {pdf_path}")
     try:
-        return len(PdfReader(pdf_path).pages)
+        reader = PdfReader(pdf_path)
+        if reader.is_encrypted:
+            raise ExtractionError(
+                f"'{os.path.basename(pdf_path)}' is password-protected."
+            )
+        return len(reader.pages)
+    except ExtractionError:
+        raise
     except (PdfReadError, OSError, ValueError) as exc:
         raise ExtractionError(
             f"'{os.path.basename(pdf_path)}' could not be read as a PDF."
