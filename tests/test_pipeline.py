@@ -112,31 +112,3 @@ def test_pipeline_error_is_a_studyforge_error(tmp_path, generated):
 
     with pytest.raises(StudyForgeError):
         pipeline.generate_from_pdf(str(notes))
-
-
-# --------------------------------------------------------------------------
-# describe_source
-# --------------------------------------------------------------------------
-
-def test_describe_source_counts_pages_and_characters():
-    summary = pipeline.describe_source(str(FIXTURE))
-
-    assert set(summary) == {"pages", "characters"}
-    assert summary["pages"] > 0
-    assert summary["characters"] > 0
-
-
-def test_describe_source_makes_no_api_call(monkeypatch):
-    def fail(pages):
-        raise AssertionError("describe_source must not call the model")
-
-    monkeypatch.setattr(pipeline, "generate_questions", fail)
-    pipeline.describe_source(str(FIXTURE))
-
-
-def test_describe_source_reports_a_bad_file(tmp_path):
-    notes = tmp_path / "notes.txt"
-    notes.write_text("not a pdf")
-
-    with pytest.raises(pipeline.PipelineError, match="Reading the document failed"):
-        pipeline.describe_source(str(notes))

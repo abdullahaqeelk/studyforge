@@ -58,26 +58,3 @@ def generate_from_pdf(pdf_path: str) -> list[dict]:
         return generate_questions(pages)
     except StudyForgeError as exc:
         raise PipelineError(f"Generating questions failed. {exc}") from exc
-
-
-def describe_source(pdf_path: str) -> dict:
-    """Summarise a document without calling the model.
-
-    Useful to the interface for showing what was uploaded before the user
-    commits to a generation request, and cheap: no API call is made.
-
-    Returns:
-        {"pages": 83, "characters": 31897}
-
-    Raises:
-        PipelineError: the document could not be read.
-    """
-    try:
-        pages = extract_pages(pdf_path)
-    except StudyForgeError as exc:
-        raise PipelineError(f"Reading the document failed. {exc}") from exc
-
-    return {
-        "pages": len(pages),
-        "characters": sum(len(page["text"]) for page in pages),
-    }
