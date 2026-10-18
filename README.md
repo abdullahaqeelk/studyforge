@@ -81,6 +81,7 @@ pip install -r requirements.txt
 cp .env.example .env   # add your GOOGLE_API_KEY
 python src/api_test.py          # verify the API connection
 python -m pytest tests/ -v      # run the test suite
+streamlit run src/app.py       # launch the Streamlit web interface
 ```
 
 ## Contributing
