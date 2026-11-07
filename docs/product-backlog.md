@@ -26,7 +26,7 @@ intent and ordering only until an item approaches a sprint.
 
 ---
 
-## Committed — Sprint 1 (12–23 Oct 2026)
+## Completed — Sprint 1 (12–23 Oct 2026)
 
 Fully refined with story points and acceptance criteria in
 `docs/sprint-1-backlog.md`.
@@ -41,14 +41,14 @@ Fully refined with story points and acceptance criteria in
 | SF-8 | Pipeline orchestration | 3 | Abdullah Aqeel Khan |
 | SF-9 | Centralised configuration and API error handling | 2 | Abdullah Aqeel Khan |
 
-**Sprint 1 commitment: 25 story points.**
+**Sprint 1: 25 points committed, 25 completed.** Retrospective: `docs/sprint-1-retrospective.md`
 
 ---
 
-## Unrefined — Retrieval layer (anticipated Sprint 2)
+## Committed — Sprint 2 (7–16 Nov 2026)
 
-Sprint 2 introduces the retrieval-augmented architecture. Until this epic lands,
-questions are generated from raw extracted text with no grounding guarantee.
+Refined with story points and acceptance criteria in `docs/sprint-2-backlog.md`. This epic converts Sprint 1's
+prompt-enforced grounding into a verifiable property of the system.
 
 **SF-10 — Document chunking and embedding**
 As a student, I want my uploaded material split and indexed so that questions
@@ -68,7 +68,7 @@ specific area.
 
 ---
 
-## Unrefined — Grading and evaluation (anticipated Sprint 3)
+## Unrefined — Grading and evaluation (anticipated Sprint 3, 17–26 Nov 2026)
 
 Sprint 3 closes the practice loop by evaluating what the student writes back.
 
@@ -90,7 +90,7 @@ material so that unfounded content is caught before release.
 
 ---
 
-## Unrefined — Adaptation and integration (anticipated Sprint 4)
+## Unrefined — Adaptation and integration (anticipated Sprint 4, 27 Nov – 6 Dec 2026)
 
 Sprint 4 makes the loop adaptive and brings the whole system together behind one
 interface.

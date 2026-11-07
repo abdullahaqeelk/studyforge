@@ -93,26 +93,33 @@ board automatically.
 
 ## Status
 
-**Sprint 1 — core generation pipeline** (12–23 October 2026)
+**Sprint 2 — retrieval layer** (7–16 November 2026)
 
-Sprint goal: a user can upload a course document and receive AI-generated
-practice questions from its content, with repository, tooling, and
-prompt-versioning discipline in place.
+Sprint goal: ground every generated question in a retrieved passage of the
+student's own material, so that grounding becomes a verifiable property of the
+system rather than an instruction in a prompt.
 
-On `main`:
+Delivered in Sprint 1 and running on `main`:
 
-- **SF-9** Centralised configuration and API error handling — five typed
-  failure modes distinguished behind one client factory
-- **SF-3** Course material upload and text extraction — per-page text with
-  page numbers preserved, 11 tests passing
+- **SF-9** Centralised configuration and typed API error handling
+- **SF-3** PDF text extraction with page numbers preserved
+- **SF-4** Question generation agent — five validated, page-cited questions
+- **SF-6** Versioned prompt files loaded at runtime
+- **SF-7** Test suite, 56 tests including a live API smoke test
+- **SF-8** Pipeline orchestration with stage-labelled failures
+- **SF-5** Streamlit interface
 
-In progress: question generation (SF-4), prompt versioning (SF-6), test suite
-foundation (SF-7), pipeline orchestration (SF-8), Streamlit interface (SF-5).
+In progress this sprint: document chunking and embedding (SF-10), vector store
+and retrieval (SF-11), source citation on every question (SF-12), topic tagging
+(SF-13).
 
-Retrieval, grading, and adaptive planning are deliberately out of scope for
-Sprint 1 and are scheduled for Sprints 2–4. Sprint 1 generates questions from
-raw extracted text, which means it carries no grounding guarantee; closing that
-gap is the purpose of Sprint 2.
+Grading and adaptive planning remain out of scope until Sprints 3 and 4.
+Sprint 1 generated questions from raw extracted text, so grounding was
+prompt-enforced rather than guaranteed; SF-10 to SF-12 close that gap.
 
-Live task status: [Jira board]https://abdullahaqeelk.atlassian.net/jira/software/projects/SF/boards/2?filter=&groupBy=none ·
-[docs/sprint-1-backlog.md](docs/sprint-1-backlog.md)
+Live task status: [Jira board](https://abdullahaqeelk.atlassian.net/jira/software/projects/SF/boards/2) ·
+[docs/sprint-2-backlog.md](docs/sprint-2-backlog.md)
+
+Sprint records: [Sprint 1 backlog](docs/sprint-1-backlog.md) ·
+[Sprint 1 retrospective](docs/sprint-1-retrospective.md) ·
+[schedule to P-3](docs/sprint-schedule.md)
