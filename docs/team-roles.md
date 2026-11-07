@@ -29,6 +29,7 @@ four sprints.
 | **Product Owner** | Mubeen Malik | Usman Irshad | Muhammad Husnain | Abdullah Aqeel Khan |
 | **Developer** | Usman Irshad | Muhammad Husnain | Abdullah Aqeel Khan | Mubeen Malik |
 | **Developer** | Muhammad Husnain | Abdullah Aqeel Khan | Mubeen Malik | Usman Irshad |
+Sprint 2 handover 7 Nov 2026: Scrum Master Abdullah -> Mubeen, Product Owner Mubeen -> Usman.
 
 All four members contribute code in every sprint regardless of role; the
 Scrum Master and Product Owner carry the additional responsibilities below
