@@ -31,6 +31,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_MODEL = "gemini-3.6-flash"
+DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
+
+# Chunking defaults (SF-10). Characters, not tokens: the figure needs to be
+# readable by anyone editing .env, and an approximate character budget is
+# sufficient for retrieval over lecture material.
+DEFAULT_CHUNK_SIZE = 1200
+DEFAULT_CHUNK_OVERLAP = 200
 
 
 # --------------------------------------------------------------------------
@@ -85,6 +92,40 @@ def get_api_key() -> str:
 def get_model() -> str:
     """Return the configured Gemini model identifier."""
     return os.getenv("GEMINI_MODEL", "").strip() or DEFAULT_MODEL
+
+
+def get_embedding_model() -> str:
+    """Return the configured embedding model identifier.
+
+    Separate from get_model() because the generation model and the embedding
+    model are retired on independent schedules; AID-1 applies to both.
+    """
+    return os.getenv("EMBEDDING_MODEL", "").strip() or DEFAULT_EMBEDDING_MODEL
+
+
+def get_chunk_size() -> int:
+    """Target chunk length in characters."""
+    return _positive_int("CHUNK_SIZE", DEFAULT_CHUNK_SIZE)
+
+
+def get_chunk_overlap() -> int:
+    """Characters repeated between consecutive chunks of the same page."""
+    return _positive_int("CHUNK_OVERLAP", DEFAULT_CHUNK_OVERLAP, allow_zero=True)
+
+
+def _positive_int(name: str, default: int, allow_zero: bool = False) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ConfigurationError(
+            f"{name} must be a whole number, not {raw!r}. Fix it in your .env file."
+        ) from None
+    if value < 0 or (value == 0 and not allow_zero):
+        raise ConfigurationError(f"{name} must be a positive number, not {value}.")
+    return value
 
 
 def get_client():
