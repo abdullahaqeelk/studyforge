@@ -54,10 +54,14 @@ def chunk_pages(pages: list[dict]) -> list[dict]:
 
     size = get_chunk_size()
     overlap = get_chunk_overlap()
-    if overlap >= size:
+    if overlap * 2 > size:
+        # Not merely "overlap < size". The word-boundary backoff in _split can
+        # pull the end of a chunk back as far as start + (size - overlap); the
+        # next start is then end - overlap. For the window to advance,
+        # size - 2*overlap must stay positive, so the real limit is half.
         raise ChunkingError(
-            f"CHUNK_OVERLAP ({overlap}) must be smaller than CHUNK_SIZE ({size}), "
-            "otherwise chunking cannot advance through the document."
+            f"CHUNK_OVERLAP ({overlap}) must be at most half of CHUNK_SIZE "
+            f"({size}), otherwise chunking cannot advance through the document."
         )
 
     chunks: list[dict] = []
@@ -105,7 +109,10 @@ def _split(text: str, size: int, overlap: int) -> list[str]:
             pieces.append(piece)
         if end >= len(text):
             break
-        start = end - overlap
+        # max(..., start + 1) is a termination guarantee, not an optimisation:
+        # it makes the loop monotonic whatever the configuration, so a bad
+        # value can never hang the application.
+        start = max(end - overlap, start + 1)
     return pieces
 
 

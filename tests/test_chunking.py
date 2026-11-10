@@ -106,12 +106,39 @@ def test_document_with_no_text_raises():
         chunk_pages(pages("", "   ", ""))
 
 
-def test_overlap_not_smaller_than_size_raises(monkeypatch):
-    """Otherwise the window never advances and chunking would loop forever."""
+@pytest.mark.parametrize("overlap", ["51", "90", "100", "200"])
+def test_overlap_above_half_of_size_raises(monkeypatch, overlap):
+    """The real limit is half, not "less than size".
+
+    The word-boundary backoff can pull a chunk's end back to start + (size -
+    overlap). The next start is end - overlap, so the window only advances
+    while size - 2*overlap stays positive.
+    """
     monkeypatch.setenv("CHUNK_SIZE", "100")
-    monkeypatch.setenv("CHUNK_OVERLAP", "100")
-    with pytest.raises(ChunkingError, match="must be smaller"):
+    monkeypatch.setenv("CHUNK_OVERLAP", overlap)
+    with pytest.raises(ChunkingError, match="at most half"):
         chunk_pages(pages("word " * 200))
+
+
+def test_overlap_of_exactly_half_is_allowed(monkeypatch):
+    monkeypatch.setenv("CHUNK_SIZE", "100")
+    monkeypatch.setenv("CHUNK_OVERLAP", "50")
+    assert chunk_pages(pages("word " * 200))
+
+
+def test_a_space_at_the_step_boundary_does_not_hang(monkeypatch):
+    """Regression: this input looped forever before the monotonic start guard.
+
+    A space landing exactly at start + step, followed by a long run with no
+    spaces, made the backoff move end so far back that the next start went
+    backwards. The loop never terminated — a hang rather than a crash, which
+    is worse because nothing surfaces to the user.
+    """
+    monkeypatch.setenv("CHUNK_SIZE", "100")
+    monkeypatch.setenv("CHUNK_OVERLAP", "40")
+    result = chunk_pages(pages("x" * 10 + " " + "y" * 400))
+    assert result
+    assert len(result) < 50, "chunking should make real progress, not inch forward"
 
 
 def test_non_numeric_chunk_size_is_a_configuration_error(monkeypatch):
