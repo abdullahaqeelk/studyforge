@@ -39,6 +39,14 @@ DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
 DEFAULT_CHUNK_SIZE = 1200
 DEFAULT_CHUNK_OVERLAP = 200
 
+# Retrieval defaults (SF-11).
+DEFAULT_RETRIEVAL_K = 5
+# Cosine similarity below which a chunk is treated as unrelated to the query.
+# This number is model-dependent: changing EMBEDDING_MODEL invalidates it, and
+# it should be recalibrated against known-unrelated queries. See
+# docs/retrieval-design.md.
+DEFAULT_MIN_SIMILARITY = 0.45
+
 
 # --------------------------------------------------------------------------
 # Error types
@@ -125,6 +133,29 @@ def _positive_int(name: str, default: int, allow_zero: bool = False) -> int:
         ) from None
     if value < 0 or (value == 0 and not allow_zero):
         raise ConfigurationError(f"{name} must be a positive number, not {value}.")
+    return value
+
+
+def get_retrieval_k() -> int:
+    """How many chunks a search returns at most."""
+    return _positive_int("RETRIEVAL_K", DEFAULT_RETRIEVAL_K)
+
+
+def get_min_similarity() -> float:
+    """Cosine similarity floor below which a chunk counts as unrelated."""
+    raw = os.getenv("MIN_SIMILARITY", "").strip()
+    if not raw:
+        return DEFAULT_MIN_SIMILARITY
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ConfigurationError(
+            f"MIN_SIMILARITY must be a number between 0 and 1, not {raw!r}."
+        ) from None
+    if not 0.0 <= value <= 1.0:
+        raise ConfigurationError(
+            f"MIN_SIMILARITY must be between 0 and 1, not {value}."
+        )
     return value
 
 
