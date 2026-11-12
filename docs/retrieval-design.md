@@ -59,13 +59,26 @@ for edited material.
 metadata table could fall out of sync with the vectors; a key on the chunk
 cannot. This is what satisfies SF-13's "labels survive a store rebuild".
 
-**A store built with a different embedding model is discarded, not used.**
-Vectors from two models are not comparable, and mixing them would return
-confidently wrong passages rather than failing. The model identifier is stored
-and checked on load.
+**A store is discarded when the indexing configuration changed.** The stored
+fingerprint covers the embedding model *and* `CHUNK_SIZE` and `CHUNK_OVERLAP`.
+Vectors from two models are not comparable, and passages cut at different
+boundaries are not the passages re-indexing would produce; either way the store
+is rebuilt rather than served. Raised in the SF-11 review, which found that
+checking the model alone left a changed chunk size serving stale passages.
 
-**Writes go to a temporary file and are moved into place.** An interrupted
-build leaves the previous store intact instead of a half-written one.
+**A store that loads but cannot be searched is also discarded.** Chunk shape
+and embedding consistency are validated on load, not only at search time. A
+structurally broken cache that passed the old load check would be returned by
+`get_store()` forever, with `search()` telling the caller to rebuild on every
+call and nothing in the system willing to do it. Also from the SF-11 review.
+
+**Writes go to a uniquely named temporary file and are moved into place.**
+An interrupted build leaves the previous store intact instead of a half-written
+one, and a failed build removes its own temporary file. The name is unique per
+build rather than derived from the target: two concurrent builds of the same
+document would otherwise share one path, and the second `replace()` would fail
+on a file the first had already moved away. `os.replace` is atomic, so the
+build that finishes last simply wins. Raised in the SF-11 review.
 
 ---
 

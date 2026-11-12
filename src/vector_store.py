@@ -29,19 +29,67 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 from pathlib import Path
 
 import numpy as np
 
-from config import (StudyForgeError, classify_api_error, get_client,
-                    get_embedding_model, get_min_similarity, get_retrieval_k)
+from config import (StudyForgeError, classify_api_error, get_chunk_overlap,
+                    get_chunk_size, get_client, get_embedding_model,
+                    get_min_similarity, get_retrieval_k)
 
 STORE_DIRECTORY = Path(__file__).resolve().parent.parent / ".stores"
-STORE_FORMAT = 1
+STORE_FORMAT = 2
 
 
 class VectorStoreError(StudyForgeError):
     """The store could not be built, read, or searched."""
+
+
+def _indexing_fingerprint() -> dict:
+    """Every setting that determines what ends up in the store.
+
+    The embedding model is not the only thing that decides a store's contents:
+    CHUNK_SIZE and CHUNK_OVERLAP decide where the passages begin and end. A
+    store built under one chunking configuration and searched under another
+    returns passages that do not match what the caller would get from
+    re-indexing, so all three travel together and are compared on load.
+    """
+    return {
+        "embedding_model": get_embedding_model(),
+        "chunk_size": get_chunk_size(),
+        "chunk_overlap": get_chunk_overlap(),
+    }
+
+
+def _chunks_are_usable(chunks) -> bool:
+    """True when every chunk can actually be searched.
+
+    Checked on load rather than only in search(): a structurally broken cache
+    that loads successfully would make get_store() return it forever, and the
+    caller would be told to rebuild on every single call with nothing in the
+    system willing to do it.
+    """
+    if not isinstance(chunks, list) or not chunks:
+        return False
+    width = None
+    for chunk in chunks:
+        if (not isinstance(chunk, dict)
+                or type(chunk.get("chunk_id")) is not int
+                or type(chunk.get("page")) is not int
+                or not isinstance(chunk.get("text"), str)):
+            return False
+        vector = chunk.get("embedding")
+        if not isinstance(vector, list) or not vector:
+            return False
+        if not all(isinstance(value, (int, float)) and not isinstance(value, bool)
+                   for value in vector):
+            return False
+        if width is None:
+            width = len(vector)
+        elif len(vector) != width:
+            return False
+    return True
 
 
 # --------------------------------------------------------------------------
@@ -82,7 +130,7 @@ def build_store(pdf_path: str, directory: Path | None = None) -> dict:
         "format": STORE_FORMAT,
         "document_id": document_id(pdf_path),
         "source_name": os.path.basename(pdf_path),
-        "embedding_model": get_embedding_model(),
+        "indexing": _indexing_fingerprint(),
         "chunks": chunks,
     }
 
@@ -90,18 +138,32 @@ def build_store(pdf_path: str, directory: Path | None = None) -> dict:
     target.parent.mkdir(parents=True, exist_ok=True)
     # Written to a temporary file and moved into place, so an interrupted build
     # leaves the previous store intact rather than a half-written one.
-    temporary = target.with_suffix(".tmp")
-    temporary.write_text(json.dumps(store), encoding="utf-8")
-    temporary.replace(target)
+    #
+    # The temporary name is unique per build, not derived from the target. Two
+    # builds of the same document would otherwise share one path: both write
+    # it, the first replaces it away, and the second's replace() fails on a
+    # file that no longer exists. os.replace is atomic, so whichever build
+    # finishes last simply wins.
+    handle, temporary_name = tempfile.mkstemp(
+        dir=target.parent, prefix=f"{target.stem}.", suffix=".tmp")
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            json.dump(store, stream)
+        os.replace(temporary, target)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
     return store
 
 
 def load_store(pdf_path: str, directory: Path | None = None) -> dict | None:
     """Return a persisted store, or None if there is none to load.
 
-    A store built with a different embedding model is discarded rather than
-    used: vectors from two models are not comparable, and silently mixing them
-    would return confidently wrong passages.
+    A store is discarded, rather than returned, when it was built under a
+    different indexing configuration or when its chunks are not searchable.
+    Both cases are repaired by get_store(), which rebuilds whatever load
+    refuses.
     """
     target = store_path(pdf_path, directory)
     if not target.exists():
@@ -113,8 +175,8 @@ def load_store(pdf_path: str, directory: Path | None = None) -> dict | None:
 
     if (not isinstance(store, dict)
             or store.get("format") != STORE_FORMAT
-            or store.get("embedding_model") != get_embedding_model()
-            or not store.get("chunks")):
+            or store.get("indexing") != _indexing_fingerprint()
+            or not _chunks_are_usable(store.get("chunks"))):
         return None
     return store
 
@@ -123,7 +185,9 @@ def get_store(pdf_path: str, directory: Path | None = None, rebuild: bool = Fals
     """Load the store for a document, building it if absent or unusable.
 
     This is the "rebuilt without manual steps" path: callers never decide
-    whether a store exists, only which document they want.
+    whether a store exists, only which document they want. A store that is
+    missing, corrupt, structurally broken, or built under different chunking
+    or embedding settings is rebuilt here rather than reported.
     """
     if not rebuild:
         existing = load_store(pdf_path, directory)

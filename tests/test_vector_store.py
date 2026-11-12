@@ -33,8 +33,10 @@ def make_store(*rows):
         if len(row) > 4:
             chunk["topics"] = row[4]
         chunks.append(chunk)
-    return {"format": 1, "document_id": "test", "source_name": "test.pdf",
-            "embedding_model": "gemini-embedding-001", "chunks": chunks}
+    return {"format": 2, "document_id": "test", "source_name": "test.pdf",
+            "indexing": {"embedding_model": "gemini-embedding-001",
+                         "chunk_size": 1200, "chunk_overlap": 200},
+            "chunks": chunks}
 
 
 @pytest.fixture
@@ -273,8 +275,9 @@ def test_a_store_from_another_embedding_model_is_discarded(pdf, tmp_path, monkey
     target = store_path(str(pdf))
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps({
-        "format": 1, "document_id": document_id(str(pdf)), "source_name": "x",
-        "embedding_model": "some-older-model",
+        "format": 2, "document_id": document_id(str(pdf)), "source_name": "x",
+        "indexing": {"embedding_model": "some-older-model",
+                     "chunk_size": 1200, "chunk_overlap": 200},
         "chunks": [{"chunk_id": 0, "page": 1, "text": "c", "embedding": NETWORKS}],
     }), encoding="utf-8")
 
@@ -297,3 +300,165 @@ def test_load_returns_none_when_no_store_exists(pdf, tmp_path, monkeypatch):
 def test_unreadable_document_is_reported(tmp_path):
     with pytest.raises(VectorStoreError, match="Could not read"):
         document_id(str(tmp_path / "absent.pdf"))
+
+
+# --------------------------------------------------------------------------
+# Cache validity — regressions from the SF-11 review
+# --------------------------------------------------------------------------
+
+def _stub_indexer(monkeypatch, calls):
+    """Record every index_document() call and return one usable chunk."""
+    def index(path):
+        calls.append(path)
+        return [{"chunk_id": 0, "page": 1, "text": "c", "embedding": NETWORKS}]
+    monkeypatch.setitem(__import__("sys").modules, "chunking",
+                        SimpleNamespace(index_document=index))
+
+
+@pytest.mark.parametrize("setting,first,second",
+                         [("CHUNK_SIZE", "100", "200"),
+                          ("CHUNK_OVERLAP", "20", "40")])
+def test_changing_chunking_config_rebuilds_the_store(
+        pdf, tmp_path, monkeypatch, setting, first, second):
+    """Regression: the model is not the only thing that decides a store's contents.
+
+    CHUNK_SIZE and CHUNK_OVERLAP decide where passages begin and end, so a
+    store built under one setting and served under another returns passages
+    that do not match what re-indexing would produce.
+    """
+    calls = []
+    monkeypatch.setattr(vector_store, "STORE_DIRECTORY", tmp_path / "stores")
+    _stub_indexer(monkeypatch, calls)
+
+    monkeypatch.setenv(setting, first)
+    get_store(str(pdf))
+    monkeypatch.setenv(setting, second)
+    get_store(str(pdf))
+
+    assert len(calls) == 2, f"changing {setting} must re-index, not serve stale chunks"
+
+
+def test_unchanged_config_still_loads_without_reindexing(pdf, tmp_path, monkeypatch):
+    """The fingerprint must not make every call a rebuild."""
+    calls = []
+    monkeypatch.setattr(vector_store, "STORE_DIRECTORY", tmp_path / "stores")
+    _stub_indexer(monkeypatch, calls)
+
+    get_store(str(pdf))
+    get_store(str(pdf))
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("broken", [
+    [{"page": 1, "text": "no embedding"}],
+    [{"chunk_id": 0, "page": 1, "text": "empty vector", "embedding": []}],
+    [{"chunk_id": 0, "page": 1, "text": "not numbers", "embedding": ["a", "b"]}],
+    [{"chunk_id": 0, "page": 1, "text": "a", "embedding": [1.0, 0.0]},
+     {"chunk_id": 1, "page": 2, "text": "b", "embedding": [1.0, 0.0, 0.0]}],
+    [{"chunk_id": "zero", "page": 1, "text": "bad id", "embedding": NETWORKS}],
+    [{"chunk_id": 0, "text": "no page", "embedding": NETWORKS}],
+])
+def test_a_structurally_broken_cache_is_discarded_on_load(
+        pdf, tmp_path, monkeypatch, broken):
+    """Regression: a cache that loads but cannot be searched is worse than none.
+
+    Previously load_store() accepted any store whose chunks list was non-empty,
+    so get_store() returned it forever and search() told the caller to rebuild
+    on every call, with nothing in the system willing to do the rebuild.
+    """
+    monkeypatch.setattr(vector_store, "STORE_DIRECTORY", tmp_path / "stores")
+    target = store_path(str(pdf))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps({
+        "format": 2, "document_id": document_id(str(pdf)), "source_name": "x",
+        "indexing": {"embedding_model": vector_store.get_embedding_model(),
+                     "chunk_size": 1200, "chunk_overlap": 200},
+        "chunks": broken,
+    }), encoding="utf-8")
+
+    assert load_store(str(pdf)) is None
+
+
+def test_get_store_repairs_a_broken_cache_by_reindexing(pdf, tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(vector_store, "STORE_DIRECTORY", tmp_path / "stores")
+    _stub_indexer(monkeypatch, calls)
+
+    target = store_path(str(pdf))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps({
+        "format": 2, "document_id": document_id(str(pdf)), "source_name": "x",
+        "indexing": {"embedding_model": vector_store.get_embedding_model(),
+                     "chunk_size": 1200, "chunk_overlap": 200},
+        "chunks": [{"page": 1, "text": "broken"}],
+    }), encoding="utf-8")
+
+    store = get_store(str(pdf))
+    assert calls, "a broken cache must be repaired, not returned"
+    assert store["chunks"][0]["embedding"] == NETWORKS
+
+
+# --------------------------------------------------------------------------
+# Concurrency — regression from the SF-11 review
+# --------------------------------------------------------------------------
+
+def test_concurrent_builds_of_one_document_do_not_collide(pdf, tmp_path, monkeypatch):
+    """Regression: both builds shared one .tmp path.
+
+    The first replace() moved it away and the second raised FileNotFoundError.
+    Each build now writes its own temporary file, and os.replace is atomic, so
+    whichever finishes last simply wins.
+    """
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    monkeypatch.setattr(vector_store, "STORE_DIRECTORY", tmp_path / "stores")
+    barrier = threading.Barrier(2)
+
+    def index(path):
+        chunk = [{"chunk_id": 0, "page": 1, "text": "c", "embedding": NETWORKS}]
+        barrier.wait(timeout=5)   # both builds reach the write together
+        return chunk
+
+    monkeypatch.setitem(__import__("sys").modules, "chunking",
+                        SimpleNamespace(index_document=index))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(vector_store.build_store, str(pdf)) for _ in range(2)]
+        results = [f.result() for f in futures]
+
+    assert all(r["chunks"] for r in results)
+    assert load_store(str(pdf)) is not None
+
+
+def test_a_failed_build_leaves_no_temporary_file_behind(pdf, tmp_path, monkeypatch):
+    monkeypatch.setattr(vector_store, "STORE_DIRECTORY", tmp_path / "stores")
+
+    def explode(path):
+        return [{"chunk_id": 0, "page": 1, "text": "c",
+                 "embedding": [object()]}]   # not JSON-serialisable
+
+    monkeypatch.setitem(__import__("sys").modules, "chunking",
+                        SimpleNamespace(index_document=explode))
+
+    with pytest.raises(TypeError):
+        vector_store.build_store(str(pdf))
+
+    leftovers = list((tmp_path / "stores").glob("*.tmp"))
+    assert leftovers == [], f"temporary files left behind: {leftovers}"
+
+
+def test_a_failed_build_leaves_the_previous_store_intact(pdf, tmp_path, monkeypatch):
+    monkeypatch.setattr(vector_store, "STORE_DIRECTORY", tmp_path / "stores")
+    calls = []
+    _stub_indexer(monkeypatch, calls)
+    get_store(str(pdf))
+
+    monkeypatch.setitem(__import__("sys").modules, "chunking",
+                        SimpleNamespace(index_document=lambda p: [
+                            {"chunk_id": 0, "page": 1, "text": "c",
+                             "embedding": [object()]}]))
+    with pytest.raises(TypeError):
+        vector_store.build_store(str(pdf))
+
+    assert load_store(str(pdf)) is not None, "the previous store must survive"
