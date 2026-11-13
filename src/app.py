@@ -20,7 +20,7 @@ uploaded_file = st.file_uploader("Upload a course PDF to generate practice quest
 
 if uploaded_file is not None:
     st.success(f"File uploaded: **{uploaded_file.name}**")
-    
+
     # SF-13: topics in this document. Kept as its own action so that a student
     # can see what a document covers without spending a generation call.
     if st.button("Identify Topics"):
@@ -41,7 +41,7 @@ if uploaded_file is not None:
             st.subheader("Topics in this document")
             st.write(" \u00b7 ".join(f"`{topic}`" for topic in found))
             st.caption(f"{len(found)} topics identified.")
-
+    
     # Action Button
     if st.button("Generate Questions", type="primary"):
         # Write Streamlit uploaded file to a temporary disk location for pipeline execution
