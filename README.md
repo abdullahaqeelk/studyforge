@@ -96,33 +96,39 @@ board automatically.
 
 ## Status
 
-**Sprint 2 — retrieval layer** (7–16 November 2026)
+**Sprint 2 complete** (7–16 November 2026) — 16 of 16 points delivered, closed
+one day early. **Sprint 3 begins 17 November.**
 
-Sprint goal: ground every generated question in a retrieved passage of the
-student's own material, so that grounding becomes a verifiable property of the
-system rather than an instruction in a prompt.
+Delivered and running on `main`:
 
-Delivered in Sprint 1 and running on `main`:
+| Story | Capability |
+|---|---|
+| SF-9 | Centralised configuration and typed API error handling |
+| SF-3 | PDF text extraction with page numbers preserved |
+| SF-4 | Question generation — five validated, page-cited questions |
+| SF-6 | Versioned prompt files loaded at runtime |
+| SF-7 | Test suite, including a live API smoke test |
+| SF-8 | Pipeline orchestration with stage-labelled failures |
+| SF-5 | Streamlit interface |
+| SF-10 | Text chunking and vector store indexing |
+| SF-11 | Retrieval-augmented generation over the student's own material |
+| SF-12 | Source citation and grounding validation |
+| SF-13 | Topic tagging and categorisation |
 
-- **SF-9** Centralised configuration and typed API error handling
-- **SF-3** PDF text extraction with page numbers preserved
-- **SF-4** Question generation agent — five validated, page-cited questions
-- **SF-6** Versioned prompt files loaded at runtime
-- **SF-7** Test suite, 56 tests including a live API smoke test
-- **SF-8** Pipeline orchestration with stage-labelled failures
-- **SF-5** Streamlit interface
+212 automated tests. Every generated question is validated against a retrieved
+passage from its cited page and carries the supporting quotation; questions
+that cannot be supported are shown with an explicit warning rather than
+presented as verified. See [docs/grounding-validation.md](docs/grounding-validation.md).
 
-In progress this sprint: document chunking and embedding (SF-10), vector store
-and retrieval (SF-11), source citation on every question (SF-12), topic tagging
-(SF-13).
+**Sprint 3 — grading and evaluation** (17–26 November 2026): answer evaluation
+(SF-14, SF-15), targeted feedback (SF-16) and an automated grounding and
+hallucination test suite (SF-17).
 
-Grading and adaptive planning remain out of scope until Sprints 3 and 4.
-Sprint 1 generated questions from raw extracted text, so grounding was
-prompt-enforced rather than guaranteed; SF-10 to SF-12 close that gap.
+Live task status: [Jira board](https://abdullahaqeelk.atlassian.net/jira/software/projects/SF/boards/2)
 
-Live task status: [Jira board](https://abdullahaqeelk.atlassian.net/jira/software/projects/SF/boards/2) ·
-[docs/sprint-2-backlog.md](docs/sprint-2-backlog.md)
-
-Sprint records: [Sprint 1 backlog](docs/sprint-1-backlog.md) ·
+Sprint records:
+[Sprint 1 backlog](docs/sprint-1-backlog.md) ·
 [Sprint 1 retrospective](docs/sprint-1-retrospective.md) ·
+[Sprint 2 backlog](docs/sprint-2-backlog.md) ·
+[Sprint 2 retrospective](docs/sprint-2-retrospective.md) ·
 [schedule to P-3](docs/sprint-schedule.md)

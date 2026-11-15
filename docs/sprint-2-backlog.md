@@ -1,13 +1,14 @@
 # Sprint 2 Backlog
 
-**Sprint Goal:** Ground every generated question in a retrieved passage of the
-student's own material, so that grounding becomes a verifiable property of the
-system rather than an instruction in a prompt.
+**Sprint Goal:** Implement document text chunking, local vector indexing,
+RAG-grounded practice question generation with Gemini, citation validation,
+and topic categorization.
 
 **Duration:** 7 Nov 2026 — 16 Nov 2026 (10 days)
 **Scrum Master:** Mubeen Malik
 **Product Owner:** Usman Irshad
-**Committed Story Points:** 21
+**Committed Story Points:** 16
+**Completed Story Points:** 16 (sprint closed 15 November, one day early)
 
 > Cadence note: Sprints 2 to 4 run for ten days rather than two weeks. Three
 > further two-week sprints would finish on 20 December, after the P-3 deadline
@@ -16,12 +17,15 @@ system rather than an instruction in a prompt.
 > inconsistent dates. See `docs/sprint-schedule.md`.
 
 > Capacity note: Sprint 1 delivered 25 points across a twelve-day iteration.
-> A ten-day iteration at the same rate is roughly 21 points, which is the
-> commitment taken here.
+> A ten-day iteration at the same rate would be roughly 21 points. The team
+> estimated this epic at 16 and committed to that rather than padding the
+> commitment to match a projection, since Sprint 1's own retrospective found
+> those estimates had been conservative and the scale needed re-anchoring
+> against a completed story.
 
 ---
 
-## SF-10 — Document chunking and embedding
+## SF-10 — Text Chunking & Vector Store Indexing
 **Points:** 5 · **Assignee:** Usman Irshad · **Priority:** High
 
 **User story**
@@ -42,8 +46,8 @@ can be grounded in specific passages rather than in the whole document.
 
 ---
 
-## SF-11 — Vector store and retrieval layer
-**Points:** 8 · **Assignee:** Abdullah Aqeel Khan · **Priority:** High
+## SF-11 — Retrieval-Augmented Question Generation Agent
+**Points:** 5 · **Assignee:** Abdullah Aqeel Khan · **Priority:** High
 
 **User story**
 As a developer, I want a retrieval layer over the indexed material so that
@@ -65,8 +69,8 @@ whole document.
 
 ---
 
-## SF-12 — Source citation on generated questions
-**Points:** 5 · **Assignee:** Muhammad Husnain · **Priority:** High
+## SF-12 — Source Citation & Grounding Validator
+**Points:** 3 · **Assignee:** Muhammad Husnain · **Priority:** High
 
 **User story**
 As a student, I want every question to cite the passage it came from so that I
@@ -91,7 +95,7 @@ an automated check. It closes decision AID-2 in `docs/ai-decisions.md`.
 
 ---
 
-## SF-13 — Topic tagging of course material
+## SF-13 — Topic Tagging & Categorization Engine
 **Points:** 3 · **Assignee:** Mubeen Malik · **Priority:** Medium
 
 **User story**
@@ -114,11 +118,11 @@ first candidate to drop if capacity proves short.
 
 | Member | Role (Sprint 2) | Stories | Points |
 |--------|-----------------|---------|--------|
-| Abdullah Aqeel Khan | Developer | SF-11 | 8 |
-| Muhammad Husnain | Developer | SF-12 | 5 |
+| Abdullah Aqeel Khan | Developer | SF-11 | 5 |
+| Muhammad Husnain | Developer | SF-12 | 3 |
 | Usman Irshad | Product Owner | SF-10 | 5 |
 | Mubeen Malik | Scrum Master | SF-13 | 3 |
-| | | **Total** | **21** |
+| | | **Total** | **16** |
 
 Scrum Master and Product Owner carry a lighter development load because of
 their ceremony and refinement duties. All four members contribute code.
@@ -141,3 +145,24 @@ the dependency graph as the cause of a two-day stall. Applying that lesson here:
 4. An **integration checkpoint** runs at the sprint midpoint (11–12 November):
    the full end-to-end path is executed against whatever is on `main` and the
    result recorded. This is retrospective action item 3.
+
+
+---
+
+## Outcome
+
+All four stories completed. The sprint was closed on 15 November, one day
+before its boundary, with nothing carried over and no scope change during the
+iteration.
+
+| Measure | Value |
+|---|---|
+| Story points committed / completed | 16 / 16 |
+| Stories committed / completed | 4 / 4 |
+| Pull requests opened / merged | 4 / 4 |
+| Pull requests requiring changes before approval | 3 |
+| Automated tests at sprint close | 212 (211 offline, 1 live API) |
+| Scope changes during the sprint | None |
+
+The dependency chain SF-10 → SF-11 → SF-12 did not stall, which was the risk
+named at planning. Retrospective: `docs/sprint-2-retrospective.md`.
