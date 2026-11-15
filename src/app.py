@@ -4,6 +4,7 @@ import streamlit as st
 
 from config import StudyForgeError
 from pipeline import generate_from_pdf
+from topics import topics_for_pdf
 
 # Set page layout
 st.set_page_config(page_title="StudyForge", page_icon="📚", layout="centered")
@@ -19,6 +20,27 @@ uploaded_file = st.file_uploader("Upload a course PDF to generate practice quest
 
 if uploaded_file is not None:
     st.success(f"File uploaded: **{uploaded_file.name}**")
+
+    # SF-13: topics in this document. Kept as its own action so that a student
+    # can see what a document covers without spending a generation call.
+    if st.button("Identify Topics"):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(uploaded_file.getbuffer())
+            topic_path = tmp.name
+        try:
+            with st.spinner("Reading the document and identifying topics..."):
+                found = topics_for_pdf(topic_path)
+        except StudyForgeError as exc:
+            st.error(str(exc))
+            found = None
+        finally:
+            if os.path.exists(topic_path):
+                os.unlink(topic_path)
+
+        if found:
+            st.subheader("Topics in this document")
+            st.write(" \u00b7 ".join(f"`{topic}`" for topic in found))
+            st.caption(f"{len(found)} topics identified.")
     
     # Action Button
     if st.button("Generate Questions", type="primary"):
