@@ -91,17 +91,21 @@ def parse_questions(response_text: str, source_pages: set[int]) -> list[dict]:
     return result
 
 
-def generate_questions(pages: list[dict]) -> list[dict]:
+def generate_questions(pages: list[dict], *, max_attempts: int = 2) -> list[dict]:
     """Generate five questions from extract_pages() output, retrying bad output once.
 
     Args:
         pages: [{"page": 1, "text": "..."}, ...], preserving original page IDs.
+        max_attempts: one or two calls; SF-12 uses one so its outer validation
+            loop owns the single retry budget across schema and grounding.
     Returns:
         Five dictionaries with question, question_type, and source_page.
     Raises:
         QuestionGenerationError: input is invalid or both model outputs fail validation.
         StudyForgeError: prompt/configuration/provider failure; API errors are not retried.
     """
+    if type(max_attempts) is not int or max_attempts not in (1, 2):
+        raise QuestionGenerationError("max_attempts must be 1 or 2.")
     source = _prepare_pages(pages)
     prompt = load_prompt(PROMPT_FILE)
     payload = json.dumps({"pages": source}, ensure_ascii=False)
@@ -111,7 +115,7 @@ def generate_questions(pages: list[dict]) -> list[dict]:
     # Both attempts use the same source and versioned prompt. Invalid generated
     # text is never fed back into the instruction channel.
     try:
-        for attempt in range(2):
+        for attempt in range(max_attempts):
             try:
                 response = client.models.generate_content(
                     model=model,
@@ -125,9 +129,9 @@ def generate_questions(pages: list[dict]) -> list[dict]:
             try:
                 return parse_questions(response.text, valid_pages)
             except QuestionGenerationError as exc:
-                if attempt == 1:
+                if attempt == max_attempts - 1:
                     raise QuestionGenerationError(
-                        f"Question generation failed after two attempts: {exc}"
+                        f"Question generation failed after {'two attempts' if max_attempts == 2 else 'one attempt'}: {exc}"
                     ) from exc
     finally:
         client.close()
