@@ -191,3 +191,53 @@ rather than an unhandled exception.
   blocking retry loop inside a Streamlit request would appear to the user as a
   hang. The decision is to fail fast with an accurate message and let the user
   retry. This may be revisited in Sprint 3 if outages prove frequent.
+
+---
+
+## AID-5 — Evidence-based grounding with one shared retry
+
+**Date:** 15 November 2026
+**Sprint:** 2 (SF-12)
+**Status:** Implemented on feature branch; live prompt evaluation and teammate review pending
+
+### Validation rules
+
+1. Retrieve passages for each generated question using SF-11's search and
+   similarity floor. Compare against retrieved chunks on the cited page.
+2. Ask the versioned `grounding_validation_v1.md` judge whether the question is
+   answerable, its factual premises are supported, and any optional answer's
+   substantive claims are supported. Treat all payload fields as untrusted data.
+3. Require one strict binary verdict per item. A positive verdict also needs
+   non-empty quotes whose chunk IDs exist, whose pages match the citation, and
+   whose text is an exact substring of that chunk. Missing or fabricated
+   evidence becomes a failed grounding check, never a pass.
+4. Share one retry across schema and grounding validation. Regenerate at most
+   once. After a second unsupported batch, expose explicit item warnings.
+   Malformed judge output after the retry raises an error. API/configuration
+   errors stop immediately to avoid repeating quota or availability failures.
+
+### Recorded retry events (offline verification)
+
+The 2026-11-15 regression tests use a mocked provider and record these expected
+and observed events through the `agents.grounding_validator` logger:
+
+| Scenario | Expected and observed event sequence |
+|---|---|
+| First batch unsupported; second supported | `grounding_checked attempt=1 unsupported=1`, `regeneration_requested attempt=2`, `grounding_checked attempt=2 unsupported=0` |
+| Both batches unsupported | `grounding_checked attempt=1 unsupported=1`, `regeneration_requested attempt=2`, `grounding_checked attempt=2 unsupported=1`, `ungrounded_warning count=1` |
+| First generation malformed | `schema_failed attempt=1`, `regeneration_requested attempt=2`; only one generation call remains |
+| Judge response malformed twice | `validator_response_invalid attempt=1`, `regeneration_requested attempt=2`, `validator_response_invalid attempt=2`; typed error |
+
+Runtime logs contain attempt numbers/counts, not private document text. They are
+not appended automatically to this tracked Markdown file: that would persist
+student activity in source control and cause concurrent file writes. This file
+records the rules and reproducible event evidence; runtime logging supplies
+per-request diagnostics. New live evaluation evidence belongs in Jira.
+
+### Limits
+
+Binary scores are judgments, not measured probabilities. An exact quote verifies
+source provenance but cannot establish semantic support by itself; the model
+can still make a false-positive judgment. Live semantic quality and injection
+resistance have not been measured here. See
+[grounding-validation.md](grounding-validation.md) for the live check and contract.

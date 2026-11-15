@@ -75,6 +75,14 @@ if uploaded_file is not None:
 
                     # Render Question Text
                     st.subheader(f"Q{idx}. {q['question']}")
+                    if q.get("grounding_warning"):
+                        st.warning(q["grounding_warning"])
+                    elif q.get("grounded"):
+                        st.caption("Source support checked")
+                        with st.expander("View supporting passages"):
+                            for evidence in q["source_evidence"]:
+                                st.write(evidence["quote"])
+                                st.caption(f"Page {evidence['page']}")
                     st.divider()
 
 else:

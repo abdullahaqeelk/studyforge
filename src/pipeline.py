@@ -1,9 +1,9 @@
 """
-StudyForge — end-to-end question generation pipeline (SF-8).
+StudyForge — question generation pipeline (SF-8, SF-12).
 
-Joins the two halves of the Sprint 1 vertical slice: extraction (SF-3) reads a
-PDF into per-page text, generation (SF-4) turns that text into page-cited
-practice questions. Callers — the Streamlit interface in particular — use this
+Extraction reads the PDF into per-page text; SF-10/SF-11 cache its embeddings.
+SF-4 generates questions and SF-12 checks them against retrieved passages,
+regenerating once or retaining explicit warnings. Callers use this
 module rather than calling the agents directly, so that the order of the stages
 and the handling of their failures lives in one place.
 
@@ -22,9 +22,10 @@ so that a large document is not held in memory twice.
 
 from __future__ import annotations
 
-from agents.question_generator import generate_questions
+from agents.grounding_validator import generate_validated_questions
 from config import StudyForgeError
 from extract import extract_pages
+from vector_store import get_store
 
 
 class PipelineError(StudyForgeError):
@@ -38,12 +39,13 @@ def generate_from_pdf(pdf_path: str) -> list[dict]:
         pdf_path: path to a .pdf file of course material.
 
     Returns:
-        Five question dicts, each with question, question_type and
-        source_page, where source_page is a real page number in the document.
+        Five question dicts with question, question_type, source_page,
+        grounded, grounding_score (0/1), source_evidence and grounding_warning.
+        A warning is retained on unsupported items after the single retry.
 
     Raises:
-        PipelineError: either stage failed. The message begins with the stage
-            name, so the interface can show the user which half went wrong.
+        PipelineError: reading, evidence preparation, generation or validation
+            failed. The message identifies the stage.
     """
     try:
         pages = extract_pages(pdf_path)
@@ -55,6 +57,11 @@ def generate_from_pdf(pdf_path: str) -> list[dict]:
         raise PipelineError(f"Reading the document failed. {exc}") from exc
 
     try:
-        return generate_questions(pages)
+        store = get_store(pdf_path)
+    except StudyForgeError as exc:
+        raise PipelineError(f"Preparing source evidence failed. {exc}") from exc
+
+    try:
+        return generate_validated_questions(pages, store)
     except StudyForgeError as exc:
         raise PipelineError(f"Generating questions failed. {exc}") from exc

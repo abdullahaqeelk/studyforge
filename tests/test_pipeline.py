@@ -24,16 +24,21 @@ QUESTIONS = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def stored(monkeypatch):
+    monkeypatch.setattr(pipeline, "get_store", lambda path: {"chunks": []})
+
+
 @pytest.fixture
 def generated(monkeypatch):
     """Stub generation and record the pages it was handed."""
     captured = {}
 
-    def fake_generate(pages):
+    def fake_generate(pages, store):
         captured["pages"] = pages
         return QUESTIONS
 
-    monkeypatch.setattr(pipeline, "generate_questions", fake_generate)
+    monkeypatch.setattr(pipeline, "generate_validated_questions", fake_generate)
     return captured
 
 
@@ -80,10 +85,10 @@ def test_extraction_failure_keeps_the_original_cause(tmp_path, generated):
 
 
 def test_generation_failure_names_the_generating_stage(monkeypatch):
-    def fail(pages):
+    def fail(pages, store):
         raise QuotaExceededError("The Google AI free-tier quota is exhausted.")
 
-    monkeypatch.setattr(pipeline, "generate_questions", fail)
+    monkeypatch.setattr(pipeline, "generate_validated_questions", fail)
 
     with pytest.raises(pipeline.PipelineError, match="Generating questions failed"):
         pipeline.generate_from_pdf(str(FIXTURE))
@@ -92,8 +97,8 @@ def test_generation_failure_names_the_generating_stage(monkeypatch):
 def test_generation_is_not_called_when_extraction_fails(tmp_path, monkeypatch):
     """A bad upload must not spend an API call."""
     calls = []
-    monkeypatch.setattr(pipeline, "generate_questions",
-                        lambda pages: calls.append(pages) or QUESTIONS)
+    monkeypatch.setattr(pipeline, "generate_validated_questions",
+                        lambda pages, store: calls.append(pages) or QUESTIONS)
 
     notes = tmp_path / "notes.txt"
     notes.write_text("not a pdf")
@@ -112,3 +117,12 @@ def test_pipeline_error_is_a_studyforge_error(tmp_path, generated):
 
     with pytest.raises(StudyForgeError):
         pipeline.generate_from_pdf(str(notes))
+
+
+def test_evidence_preparation_failure_stops_generation(monkeypatch, generated):
+    def fail(path):
+        raise QuotaExceededError("Embedding quota exhausted.")
+    monkeypatch.setattr(pipeline, "get_store", fail)
+    with pytest.raises(pipeline.PipelineError, match="Preparing source evidence failed"):
+        pipeline.generate_from_pdf(str(FIXTURE))
+    assert generated == {}

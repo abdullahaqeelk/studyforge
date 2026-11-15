@@ -96,6 +96,20 @@ def test_two_invalid_responses_fail_without_third_call(client):
     client.close.assert_called_once()
 
 
+def test_sf12_can_own_the_retry_budget(client):
+    client.models.generate_content.return_value = SimpleNamespace(text="bad JSON")
+    with pytest.raises(generator.QuestionGenerationError, match="one attempt"):
+        generator.generate_questions([{"page": 3, "text": "Notes"}], max_attempts=1)
+    client.models.generate_content.assert_called_once()
+
+
+@pytest.mark.parametrize("attempts", [0, 3, True, "2"])
+def test_invalid_retry_budget_fails_before_api_call(client, attempts):
+    with pytest.raises(generator.QuestionGenerationError, match="max_attempts"):
+        generator.generate_questions([{"page": 3, "text": "Notes"}], max_attempts=attempts)
+    client.models.generate_content.assert_not_called()
+
+
 def test_quota_error_is_typed_and_not_retried(client):
     client.models.generate_content.side_effect = RuntimeError("429 quota exceeded")
     with pytest.raises(QuotaExceededError):

@@ -86,6 +86,9 @@ streamlit run src/app.py       # launch the Streamlit web interface
 
 ## Contributing
 
+SF-12 source validation, bounded regeneration, warning behavior and live-check
+instructions: [docs/grounding-validation.md](docs/grounding-validation.md).
+
 One branch per story, named `feature/SF-<id>-<short-description>`. Every change
 reaches `main` through a pull request reviewed by another team member. Commit
 messages begin with the Jira key (`SF-3 ...`) so that commits link back to the
