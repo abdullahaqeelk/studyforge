@@ -65,7 +65,7 @@ LMS; each sprint starts exactly two weeks before its deliverable is due.
 |-------|-------|-----|-------------|
 | Sprint 0 | 21 Sep 2026 | 11 Oct 2026 | P-1 Project Initialization (due 27 Sep) |
 | Sprint 1 | Mon 12 Oct 2026 | Fri 23 Oct 2026 | P-2 Sprint 1 Execution & Agile Artifacts (submit by 25 Oct) |
-| Sprint 2 | Mon 26 Oct 2026 | Sun 08 Nov 2026 | — |
+| Sprint 2 | Sat 07 Nov 2026 | Mon 16 Nov 2026 | — |
 | Sprint 3 | Mon 09 Nov 2026 | Sun 22 Nov 2026 | — |
 | Sprint 4 | Mon 23 Nov 2026 | Sun 06 Dec 2026 | — |
 | Report | 07 Dec 2026 | 13 Dec 2026 | P-3 Final Project Report |
