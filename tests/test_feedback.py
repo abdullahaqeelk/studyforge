@@ -166,9 +166,24 @@ def test_cited_pages_are_deduplicated_and_sorted():
     assert parse_feedback(reply(pages=(4, 4, 2)), {2, 4})["cited_pages"] == [2, 4]
 
 
-def test_the_question_s_own_page_is_always_citable():
-    """source_page is where the question came from, even if no point names it."""
-    assert parse_feedback(reply(pages=(4,)), {4})["cited_pages"] == [4]
+def test_the_question_s_own_page_is_not_citable_without_a_point(stub):
+    """Raised by @coder-og in review of PR #11.
+
+    source_page is never sent to the model, so a citation to it is a citation to
+    evidence the model was not shown. The allowlist is built from the supplied
+    points alone; a graded result carrying none leaves nothing citable.
+    """
+    client = stub(reply(pages=(4,)), reply(pages=(4,)))
+    graded_with_no_points = dict(grading.wholly_incorrect(), score=0, covered=[], missed=[])
+    with pytest.raises(FeedbackError, match="was not among the pages supplied"):
+        generate_feedback(graded_with_no_points)
+    assert client.calls == 2, "the first rejection is retried once, then raises"
+
+
+def test_a_point_s_page_is_citable(stub):
+    """The other half of the same rule: a page a supplied point names is fine."""
+    stub(reply(pages=(4,)))
+    assert generate_feedback(grading.partially_correct())["cited_pages"] == [4]
 
 
 def test_feedback_citing_nothing_is_allowed():

@@ -24,7 +24,7 @@ Usage:
 
     from agents.feedback import generate_feedback
 
-    result = grade_answer(question, answer, store)   # SF-15
+    result = grade_answer(question, answer, source_page, store)   # SF-15
     explained = generate_feedback(result)
     explained["feedback"]       # "You correctly identified ..."
     explained["cited_pages"]    # [4]
@@ -201,7 +201,12 @@ def generate_feedback(result: dict) -> dict:
         return {**result, "feedback": None, "cited_pages": []}
 
     points = result["covered"] + result["missed"]
-    allowed_pages = {point["page"] for point in points} | {result["source_page"]}
+    # Built from the supplied points alone. source_page is deliberately NOT
+    # added: the model is never shown it, so a citation to it is a citation to
+    # evidence the model never received. A graded result with no points leaves
+    # this set empty, and every citation is then rejected — which is correct,
+    # because nothing was supplied for the feedback to rest on.
+    allowed_pages = {point["page"] for point in points}
 
     # One request per answer, not one per missed point. A ten-point answer would
     # otherwise cost ten calls against a free-tier quota the whole team shares.
