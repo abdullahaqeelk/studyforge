@@ -9,7 +9,7 @@ from pathlib import Path
 from config import StudyForgeError, classify_api_error, get_client, get_model
 from prompt_loader import load_prompt
 
-PROMPT_FILE = "question_generation_v1.md"
+PROMPT_FILE = "question_generation_v2.md"
 QUESTION_COUNT = 5
 # Sprint 1 sends raw page text, not RAG. Reject large inputs rather than silently
 # truncating pages and making the source mapping misleading.
@@ -20,8 +20,13 @@ QUESTION_SCHEMA = {
         "type": "OBJECT",
         "properties": {
             "question": {"type": "STRING"},
-            "question_type": {"type": "STRING", "enum": ["short_answer"]},
+            "question_type": {
+                "type": "STRING",
+                "enum": ["short_answer", "multiple_choice"],
+            },
             "source_page": {"type": "INTEGER"},
+            "options": {"type": "ARRAY", "items": {"type": "STRING"}},
+            "correct_option": {"type": "INTEGER"},
         },
         "required": ["question", "question_type", "source_page"],
     },
@@ -38,9 +43,15 @@ def _prepare_pages(pages: list[dict]) -> list[dict]:
         raise QuestionGenerationError("Provide a non-empty list of extracted pages.")
     result, seen = [], set()
     for page in pages:
-        if (not isinstance(page, dict) or type(page.get("page")) is not int
-                or page["page"] < 1 or not isinstance(page.get("text"), str)):
-            raise QuestionGenerationError("Each page needs a positive integer page and text string.")
+        if (
+            not isinstance(page, dict)
+            or type(page.get("page")) is not int
+            or page["page"] < 1
+            or not isinstance(page.get("text"), str)
+        ):
+            raise QuestionGenerationError(
+                "Each page needs a positive integer page and text string."
+            )
         if page["page"] in seen:
             raise QuestionGenerationError("Source page numbers must be unique.")
         seen.add(page["page"])
@@ -49,7 +60,9 @@ def _prepare_pages(pages: list[dict]) -> list[dict]:
     if not result:
         raise QuestionGenerationError("The source contains no extractable text.")
     if sum(len(page["text"]) for page in result) > MAX_SOURCE_CHARACTERS:
-        raise QuestionGenerationError("Source is too long for Sprint 1. Use a smaller PDF or page selection.")
+        raise QuestionGenerationError(
+            "Source is too long for Sprint 1. Use a smaller PDF or page selection."
+        )
     return result
 
 
@@ -71,23 +84,91 @@ def parse_questions(response_text: str, source_pages: set[int]) -> list[dict]:
     except (ValueError, RecursionError) as exc:
         raise QuestionGenerationError("The model did not return valid JSON.") from exc
     if not isinstance(items, list) or len(items) != QUESTION_COUNT:
-        raise QuestionGenerationError("The model must return exactly five questions; the source may be insufficient.")
+        raise QuestionGenerationError(
+            "The model must return exactly five questions; the source may be insufficient."
+        )
     result, seen = [], set()
     for item in items:
-        if not isinstance(item, dict) or set(item) != {"question", "question_type", "source_page"}:
-            raise QuestionGenerationError("Each question needs question, question_type, and source_page only.")
+        if not isinstance(item, dict) or "question_type" not in item:
+            raise QuestionGenerationError(
+                "Each question must be an object with a question_type."
+            )
+
+        q_type = item["question_type"]
+
+        if q_type == "short_answer":
+            if set(item) != {"question", "question_type", "source_page"}:
+                raise QuestionGenerationError(
+                    "Each short_answer question needs question, question_type, and source_page only."
+                )
+        elif q_type == "multiple_choice":
+            if set(item) != {
+                "question",
+                "question_type",
+                "source_page",
+                "options",
+                "correct_option",
+            }:
+                raise QuestionGenerationError(
+                    "Each multiple_choice question needs question, question_type, source_page, options, and correct_option."
+                )
+            options = item["options"]
+            if not isinstance(options, list) or len(options) != 4:
+                raise QuestionGenerationError(
+                    "Multiple-choice options must be a list of exactly four strings."
+                )
+            if any(not isinstance(opt, str) or not opt.strip() for opt in options):
+                raise QuestionGenerationError(
+                    "All four multiple-choice options must be non-empty strings."
+                )
+            if len({opt.strip().casefold() for opt in options}) != 4:
+                raise QuestionGenerationError(
+                    "All four multiple-choice options must be distinct."
+                )
+            if type(item["correct_option"]) is not int or item[
+                "correct_option"
+            ] not in range(4):
+                raise QuestionGenerationError(
+                    "correct_option must be an integer in range(4)."
+                )
+        else:
+            raise QuestionGenerationError(
+                "Question type must be short_answer or multiple_choice."
+            )
+
         if not isinstance(item["question"], str) or not item["question"].strip():
             raise QuestionGenerationError("Question text must be a non-empty string.")
-        if item["question_type"] != "short_answer":
-            raise QuestionGenerationError("Question type must be short_answer.")
-        if type(item["source_page"]) is not int or item["source_page"] not in source_pages:
-            raise QuestionGenerationError("A question cites a page that was not provided with text.")
+        if (
+            type(item["source_page"]) is not int
+            or item["source_page"] not in source_pages
+        ):
+            raise QuestionGenerationError(
+                "A question cites a page that was not provided with text."
+            )
         question = item["question"].strip()
         normalized = " ".join(question.casefold().split())
         if normalized in seen:
             raise QuestionGenerationError("The model returned duplicate questions.")
         seen.add(normalized)
-        result.append({"question": question, "question_type": "short_answer", "source_page": item["source_page"]})
+
+        if q_type == "short_answer":
+            result.append(
+                {
+                    "question": question,
+                    "question_type": "short_answer",
+                    "source_page": item["source_page"],
+                }
+            )
+        else:
+            result.append(
+                {
+                    "question": question,
+                    "question_type": "multiple_choice",
+                    "source_page": item["source_page"],
+                    "options": [opt.strip() for opt in item["options"]],
+                    "correct_option": item["correct_option"],
+                }
+            )
     return result
 
 
@@ -120,9 +201,11 @@ def generate_questions(pages: list[dict], *, max_attempts: int = 2) -> list[dict
                 response = client.models.generate_content(
                     model=model,
                     contents=payload,
-                    config={"system_instruction": prompt,
-                            "response_mime_type": "application/json",
-                            "response_schema": QUESTION_SCHEMA},
+                    config={
+                        "system_instruction": prompt,
+                        "response_mime_type": "application/json",
+                        "response_schema": QUESTION_SCHEMA,
+                    },
                 )
             except Exception as exc:
                 raise classify_api_error(exc) from exc
@@ -140,7 +223,9 @@ def generate_questions(pages: list[dict], *, max_attempts: int = 2) -> list[dict
 def main() -> int:
     """Run a live generation smoke check on an extracted-pages JSON file."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("pages_json", type=Path, help="UTF-8 JSON array of page/text objects")
+    parser.add_argument(
+        "pages_json", type=Path, help="UTF-8 JSON array of page/text objects"
+    )
     args = parser.parse_args()
     try:
         pages = json.loads(args.pages_json.read_text(encoding="utf-8"))
