@@ -7,18 +7,29 @@ from prompt_loader import load_prompt
 from vector_store import search
 
 MAX_SCORE = 5
-PROMPT_FILE = "answer_grading_v1.md"
+PROMPT_FILE = "answer_grading_v2.md"
 _POINT_SCHEMA = {
     "type": "OBJECT",
-    "properties": {"chunk_id": {"type": "INTEGER"}, "point": {"type": "STRING"}},
-    "required": ["chunk_id", "point"],
+    "properties": {
+        "chunk_id": {"type": "INTEGER"},
+        "point": {"type": "STRING"},
+        "source_quote": {"type": "STRING"},
+        "weight": {"type": "INTEGER", "minimum": 1, "maximum": MAX_SCORE},
+    },
+    "required": ["chunk_id", "point", "source_quote", "weight"],
+}
+_COVERED_SCHEMA = {
+    **_POINT_SCHEMA,
+    "properties": {**_POINT_SCHEMA["properties"], "answer_quote": {"type": "STRING"}},
+    "required": [*_POINT_SCHEMA["required"], "answer_quote"],
 }
 _SCHEMA = {
     "type": "OBJECT",
-    "properties": {"score": {"type": "INTEGER"},
-                   "covered": {"type": "ARRAY", "items": _POINT_SCHEMA},
-                   "missed": {"type": "ARRAY", "items": _POINT_SCHEMA}},
-    "required": ["score", "covered", "missed"],
+    "properties": {
+        "covered": {"type": "ARRAY", "items": _COVERED_SCHEMA},
+        "missed": {"type": "ARRAY", "items": _POINT_SCHEMA},
+    },
+    "required": ["covered", "missed"],
 }
 
 
@@ -26,33 +37,55 @@ class GradingError(StudyForgeError):
     """The grading request or model response did not meet the contract."""
 
 
-def _parse_grade(raw: str, pages_by_chunk: dict[int, int]) -> dict:
-    """Validate a score and attach trusted page numbers to its points."""
+def _contains_quote(text: str, quote: object) -> bool:
+    """Check a verbatim excerpt while allowing PDF line wraps and spacing."""
+    return isinstance(quote, str) and bool(quote.strip()) and (
+        " ".join(quote.split()) in " ".join(text.split())
+    )
+
+
+def _parse_grade(raw: str, sources: list[dict], answer: str) -> dict:
+    """Validate the rubric and add credit only for verified covered points."""
     try:
         result = json.loads(raw)
     except (TypeError, ValueError, RecursionError) as exc:
         raise GradingError("The grading model did not return valid JSON.") from exc
-    if not isinstance(result, dict) or result.keys() != {"score", "covered", "missed"}:
+    if not isinstance(result, dict) or result.keys() != {"covered", "missed"}:
         raise GradingError("The model did not return the required grading fields.")
-    score = result["score"]
-    if type(score) is not int or not 0 <= score <= MAX_SCORE:
-        raise GradingError("The grading score must be an integer from 0 to 5.")
-    checked = {"score": score}
-    for field in ("covered", "missed"):
+    chunks = {chunk["chunk_id"]: chunk for chunk in sources}
+    checked = {"score": 0}
+    seen_points = set()
+    rubric_weight = 0
+    for field, schema in (("covered", _COVERED_SCHEMA), ("missed", _POINT_SCHEMA)):
         if not isinstance(result[field], list):
             raise GradingError(f"Grading field {field} must be a list.")
         points = []
         for entry in result[field]:
-            if (not isinstance(entry, dict) or entry.keys() != {"chunk_id", "point"}
+            if (not isinstance(entry, dict) or entry.keys() != set(schema["required"])
                     or type(entry["chunk_id"]) is not int
-                    or entry["chunk_id"] not in pages_by_chunk
+                    or entry["chunk_id"] not in chunks
                     or not isinstance(entry["point"], str) or not entry["point"].strip()):
                 raise GradingError("A grading point did not cite a supplied source chunk or had no text.")
-            points.append({"chunk_id": entry["chunk_id"], "page": pages_by_chunk[entry["chunk_id"]],
-                           "point": entry["point"].strip()})
+            chunk = chunks[entry["chunk_id"]]
+            if not _contains_quote(chunk["text"], entry["source_quote"]):
+                raise GradingError("A grading point quoted text missing from its source chunk.")
+            weight = entry["weight"]
+            if type(weight) is not int or not 1 <= weight <= MAX_SCORE:
+                raise GradingError("Each rubric weight must be an integer from 1 to 5.")
+            point = entry["point"].strip()
+            point_key = " ".join(point.casefold().split())
+            if point_key in seen_points:
+                raise GradingError("The rubric repeated a grading point.")
+            seen_points.add(point_key)
+            rubric_weight += weight
+            if field == "covered":
+                if not _contains_quote(answer, entry["answer_quote"]):
+                    raise GradingError("A covered point quoted text missing from the submitted answer.")
+                checked["score"] += weight
+            points.append({"chunk_id": chunk["chunk_id"], "page": chunk["page"], "point": point})
         checked[field] = points
-    if score > 0 and not checked["covered"]:
-        raise GradingError("A positive score requires at least one covered source point.")
+    if rubric_weight != MAX_SCORE:
+        raise GradingError("The rubric weights must total 5.")
     return checked
 
 
@@ -95,7 +128,7 @@ def grade_answer(question: str, answer: str, source_page: int, store: dict) -> d
             )
         except Exception as exc:
             raise classify_api_error(exc) from exc
-        grade = _parse_grade(response.text, {c["chunk_id"]: c["page"] for c in sources})
+        grade = _parse_grade(response.text, sources, answer)
     finally:
         client.close()
     return {**base, **grade, "graded": True}
