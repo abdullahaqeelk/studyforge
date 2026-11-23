@@ -49,27 +49,66 @@ def _prepare(items: list[dict], chunks: list[dict]) -> tuple[list[dict], dict]:
         raise GroundingError("Source chunks must be a list.")
     sources = {}
     for chunk in chunks:
-        if (not isinstance(chunk, dict) or type(chunk.get("chunk_id")) is not int
-                or type(chunk.get("page")) is not int or chunk["page"] < 1
-                or not isinstance(chunk.get("text"), str) or not chunk["text"].strip()
-                or chunk["chunk_id"] in sources):
-            raise GroundingError("Source chunks need unique integer IDs, positive pages and text.")
+        if (
+            not isinstance(chunk, dict)
+            or type(chunk.get("chunk_id")) is not int
+            or type(chunk.get("page")) is not int
+            or chunk["page"] < 1
+            or not isinstance(chunk.get("text"), str)
+            or not chunk["text"].strip()
+            or chunk["chunk_id"] in sources
+        ):
+            raise GroundingError(
+                "Source chunks need unique integer IDs, positive pages and text."
+            )
         sources[chunk["chunk_id"]] = {
-            "chunk_id": chunk["chunk_id"], "page": chunk["page"], "text": chunk["text"]}
+            "chunk_id": chunk["chunk_id"],
+            "page": chunk["page"],
+            "text": chunk["text"],
+        }
     prepared = []
     for index, item in enumerate(items):
-        if (not isinstance(item, dict) or not isinstance(item.get("question"), str)
-                or not item["question"].strip() or type(item.get("source_page")) is not int
-                or item["source_page"] < 1
-                or ("answer" in item and (not isinstance(item["answer"], str)
-                                          or not item["answer"].strip()))):
-            raise GroundingError("Each item needs a question, positive source_page and optional answer text.")
-        prepared.append({
-            "item_index": index, "question": item["question"],
-            **({"answer": item["answer"]} if "answer" in item else {}),
-            "source_page": item["source_page"],
-            "sources": [c for c in sources.values() if c["page"] == item["source_page"]],
-        })
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("question"), str)
+            or not item["question"].strip()
+            or type(item.get("source_page")) is not int
+            or item["source_page"] < 1
+            or (
+                "answer" in item
+                and (not isinstance(item["answer"], str) or not item["answer"].strip())
+            )
+        ):
+            raise GroundingError(
+                "Each item needs a question, positive source_page and optional answer text."
+            )
+        if item.get("question_type") == "multiple_choice":
+            options = item.get("options")
+            correct_idx = item.get("correct_option")
+            if (
+                not isinstance(options, list)
+                or type(correct_idx) is not int
+                or not 0 <= correct_idx < len(options)
+                or not isinstance(options[correct_idx], str)
+                or not options[correct_idx].strip()
+            ):
+                raise GroundingError(
+                    "Multiple-choice item needs valid options and correct_option index."
+                )
+            proposed_answer = options[correct_idx]
+        else:
+            proposed_answer = item.get("answer")
+        prepared.append(
+            {
+                "item_index": index,
+                "question": item["question"],
+                **({"answer": proposed_answer} if proposed_answer is not None else {}),
+                "source_page": item["source_page"],
+                "sources": [
+                    c for c in sources.values() if c["page"] == item["source_page"]
+                ],
+            }
+        )
     return prepared, sources
 
 
@@ -83,32 +122,48 @@ def _parse_verdicts(text: str, items: list[dict], sources: dict) -> list[dict]:
         raise GroundingError("The grounding check must return one verdict per item.")
     by_index = {}
     for verdict in verdicts:
-        if (not isinstance(verdict, dict)
-                or set(verdict) != {"item_index", "grounded", "evidence"}
-                or type(verdict["item_index"]) is not int
-                or not 0 <= verdict["item_index"] < len(items)
-                or verdict["item_index"] in by_index
-                or type(verdict["grounded"]) is not bool
-                or not isinstance(verdict["evidence"], list)):
+        if (
+            not isinstance(verdict, dict)
+            or set(verdict) != {"item_index", "grounded", "evidence"}
+            or type(verdict["item_index"]) is not int
+            or not 0 <= verdict["item_index"] < len(items)
+            or verdict["item_index"] in by_index
+            or type(verdict["grounded"]) is not bool
+            or not isinstance(verdict["evidence"], list)
+        ):
             raise GroundingError("The grounding check returned an invalid verdict.")
         index = verdict["item_index"]
         evidence = []
         valid = bool(verdict["evidence"])
         for reference in verdict["evidence"]:
-            if (not isinstance(reference, dict) or set(reference) != {"chunk_id", "quote"}
-                    or type(reference["chunk_id"]) is not int
-                    or not isinstance(reference["quote"], str)):
+            if (
+                not isinstance(reference, dict)
+                or set(reference) != {"chunk_id", "quote"}
+                or type(reference["chunk_id"]) is not int
+                or not isinstance(reference["quote"], str)
+            ):
                 raise GroundingError("The grounding check returned invalid evidence.")
             chunk = sources.get(reference["chunk_id"])
             quote = reference["quote"].strip()
-            if (not chunk or chunk["page"] != items[index]["source_page"]
-                    or not quote or quote not in chunk["text"]):
+            if (
+                not chunk
+                or chunk["page"] != items[index]["source_page"]
+                or not quote
+                or quote not in chunk["text"]
+            ):
                 valid = False
             else:
-                evidence.append({"chunk_id": chunk["chunk_id"], "page": chunk["page"], "quote": quote})
+                evidence.append(
+                    {
+                        "chunk_id": chunk["chunk_id"],
+                        "page": chunk["page"],
+                        "quote": quote,
+                    }
+                )
         grounded = verdict["grounded"] and valid
         by_index[index] = {
-            **items[index], "grounded": grounded,
+            **items[index],
+            "grounded": grounded,
             "grounding_score": int(grounded),
             "source_evidence": evidence if grounded else [],
             "grounding_warning": None if grounded else WARNING,
@@ -128,16 +183,29 @@ def validate_grounding(items: list[dict], source_chunks: list[dict]) -> list[dic
     # Items with no evidence cannot be grounded, and do not need a model call.
     eligible = [item for item in prepared if item["sources"]]
     if not eligible:
-        return [{**item, "grounded": False, "grounding_score": 0,
-                 "source_evidence": [], "grounding_warning": WARNING} for item in items]
+        return [
+            {
+                **item,
+                "grounded": False,
+                "grounding_score": 0,
+                "source_evidence": [],
+                "grounding_warning": WARNING,
+            }
+            for item in items
+        ]
     prompt = load_prompt(PROMPT_FILE)
     client = get_client()
     try:
         try:
             response = client.models.generate_content(
-                model=get_model(), contents=json.dumps({"items": prepared}, ensure_ascii=False),
-                config={"system_instruction": prompt, "response_mime_type": "application/json",
-                        "response_schema": VERDICT_SCHEMA})
+                model=get_model(),
+                contents=json.dumps({"items": prepared}, ensure_ascii=False),
+                config={
+                    "system_instruction": prompt,
+                    "response_mime_type": "application/json",
+                    "response_schema": VERDICT_SCHEMA,
+                },
+            )
         except Exception as exc:
             raise classify_api_error(exc) from exc
         return _parse_verdicts(response.text, items, sources)
@@ -176,7 +244,9 @@ def generate_validated_questions(pages: list[dict], store: dict) -> list[dict]:
             LOGGER.info("SF-12 regeneration_requested attempt=2")
             continue
         failures = sum(not item["grounded"] for item in checked)
-        LOGGER.info("SF-12 grounding_checked attempt=%s unsupported=%s", attempt + 1, failures)
+        LOGGER.info(
+            "SF-12 grounding_checked attempt=%s unsupported=%s", attempt + 1, failures
+        )
         if not failures or attempt:
             if failures:
                 LOGGER.warning("SF-12 ungrounded_warning count=%s", failures)
