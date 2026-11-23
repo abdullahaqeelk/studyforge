@@ -108,7 +108,46 @@ def test_invalid_model_result_raises_without_a_grade(provider, payload):
     provider.models.generate_content.return_value = SimpleNamespace(text=payload)
     with pytest.raises(grader.GradingError):
         grade()
+    assert provider.models.generate_content.call_count == 2
     provider.close.assert_called_once()
+
+
+@pytest.mark.parametrize("quote", ["the", "the integral", "It is that", "computes the integ"])
+def test_wrong_answer_gets_zero_after_trivial_credit_is_rejected(provider, quote):
+    answer = "It computes the integral, giving the area under the curve. It is that."
+    full_weight = dict(OPERATION, weight=5)
+    provider.models.generate_content.side_effect = [
+        SimpleNamespace(text=json.dumps({
+            "covered": [dict(full_weight, answer_quote=quote)], "missed": [],
+        })),
+        SimpleNamespace(text=json.dumps({"covered": [], "missed": [full_weight]})),
+    ]
+    result = grade(answer)
+    assert result["graded"] is True
+    assert result["score"] == 0
+    assert result["covered"] == []
+    assert provider.models.generate_content.call_count == 2
+    first, second = provider.models.generate_content.call_args_list
+    assert first == second
+    vector_store._embed_query.assert_called_once_with(QUESTION)
+    provider.close.assert_called_once()
+
+
+def test_retry_recovers_from_weights_totalling_six(provider):
+    provider.models.generate_content.side_effect = [
+        SimpleNamespace(text=json.dumps({"covered": [], "missed": [dict(OPERATION, weight=5), PURPOSE]})),
+        SimpleNamespace(text=json.dumps({"covered": [], "missed": RUBRIC})),
+    ]
+    assert grade("No idea")["score"] == 0
+    assert provider.models.generate_content.call_count == 2
+    provider.close.assert_called_once()
+
+
+def test_complete_one_term_answer_can_earn_credit():
+    point = {"chunk_id": 7, "point": "UDP.", "source_quote": "UDP", "answer_quote": "UDP", "weight": 5}
+    sources = [{"chunk_id": 7, "page": 4, "text": "The protocol is UDP."}]
+    result = grader._parse_grade(json.dumps({"covered": [point], "missed": []}), sources, "UDP.")
+    assert result["score"] == 5
 
 
 def test_provider_failure_stays_an_exception(provider):
