@@ -1,3 +1,4 @@
+import hashlib
 import os
 import tempfile
 import streamlit as st
@@ -22,10 +23,8 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None:
-    file_size = getattr(uploaded_file, "size", None)
-    if file_size is None:
-        file_size = len(uploaded_file.getbuffer())
-    upload_key = (getattr(uploaded_file, "name", None), file_size)
+    content_digest = hashlib.sha256(uploaded_file.getbuffer()).hexdigest()
+    upload_key = (getattr(uploaded_file, "name", None), content_digest)
     if st.session_state.get("uploaded_pdf_key") != upload_key:
         st.session_state["uploaded_pdf_key"] = upload_key
         st.session_state.pop("questions", None)
