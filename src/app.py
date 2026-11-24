@@ -17,9 +17,19 @@ st.markdown("---")
 
 # 1. Document Upload Section
 st.header("1. Upload Course Material")
-uploaded_file = st.file_uploader("Upload a course PDF to generate practice questions", type=["pdf"])
+uploaded_file = st.file_uploader(
+    "Upload a course PDF to generate practice questions", type=["pdf"]
+)
 
 if uploaded_file is not None:
+    file_size = getattr(uploaded_file, "size", None)
+    if file_size is None:
+        file_size = len(uploaded_file.getbuffer())
+    upload_key = (getattr(uploaded_file, "name", None), file_size)
+    if st.session_state.get("uploaded_pdf_key") != upload_key:
+        st.session_state["uploaded_pdf_key"] = upload_key
+        st.session_state.pop("questions", None)
+
     st.success(f"File uploaded: **{uploaded_file.name}**")
 
     # SF-13: topics in this document. Kept as its own action so that a student
@@ -53,15 +63,17 @@ if uploaded_file is not None:
         try:
             with st.spinner("Analyzing document and generating questions..."):
                 st.session_state["questions"] = generate_from_pdf(tmp_path)
+                st.session_state["batch_id"] = st.session_state.get("batch_id", 0) + 1
         except StudyForgeError as exc:
             st.error(str(exc))
-            st.session_state["questions"] = None
+            st.session_state.pop("questions", None)
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
     # 2. Display Results
     questions = st.session_state.get("questions")
+    batch_id = st.session_state.get("batch_id", 0)
     if questions:
         st.markdown("---")
         st.header("2. Practice Questions")
@@ -78,6 +90,10 @@ if uploaded_file is not None:
                 # Render Question Text
                 st.subheader(f"Q{idx}. {q['question']}")
 
+                is_ungrounded = (
+                    bool(q.get("grounding_warning")) or q.get("grounded") is False
+                )
+
                 if q.get("question_type") == "multiple_choice":
                     options = q.get("options", [])
                     selected = st.radio(
@@ -85,14 +101,21 @@ if uploaded_file is not None:
                         options=range(len(options)),
                         format_func=lambda i, opts=options: opts[i],
                         index=None,
-                        key=f"mcq_choice_{idx}",
+                        key=f"mcq_choice_{batch_id}_{idx}",
                     )
                     if selected is not None:
-                        verdict = evaluate_answer(q, selected)
-                        if verdict["is_correct"]:
-                            st.success("Correct!")
+                        if is_ungrounded:
+                            st.info(
+                                "Answer checking is withheld because this question or answer key failed source grounding."
+                            )
                         else:
-                            st.error(f"Incorrect. Correct answer: {options[verdict['correct_option']]}")
+                            verdict = evaluate_answer(q, selected)
+                            if verdict["is_correct"]:
+                                st.success("Correct!")
+                            else:
+                                st.error(
+                                    f"Incorrect. Correct answer: {options[verdict['correct_option']]}"
+                                )
 
                 if q.get("grounding_warning"):
                     st.warning(q["grounding_warning"])
@@ -105,4 +128,6 @@ if uploaded_file is not None:
                 st.divider()
 
 else:
+    st.session_state.pop("uploaded_pdf_key", None)
+    st.session_state.pop("questions", None)
     st.info("Please upload a PDF file to get started.")

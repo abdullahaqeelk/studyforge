@@ -169,6 +169,12 @@ def parse_questions(response_text: str, source_pages: set[int]) -> list[dict]:
                     "correct_option": item["correct_option"],
                 }
             )
+
+    mcq_count = sum(1 for q in result if q["question_type"] == "multiple_choice")
+    if mcq_count < 2:
+        raise QuestionGenerationError(
+            "The model must return at least two multiple_choice questions."
+        )
     return result
 
 

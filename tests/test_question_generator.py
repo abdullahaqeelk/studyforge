@@ -15,14 +15,30 @@ from prompt_loader import PromptError, load_prompt
 
 @pytest.fixture
 def questions():
-    return [
+    short = [
         {
             "question": f"Explain concept {i}.",
             "question_type": "short_answer",
             "source_page": 3,
         }
-        for i in range(5)
+        for i in range(3)
     ]
+    mcqs = [
+        {
+            "question": f"Which option describes concept {i}?",
+            "question_type": "multiple_choice",
+            "source_page": 3,
+            "options": [
+                f"Option A{i}",
+                f"Option B{i}",
+                f"Option C{i}",
+                f"Option D{i}",
+            ],
+            "correct_option": 1,
+        }
+        for i in range(2)
+    ]
+    return short + mcqs
 
 
 @pytest.fixture
@@ -219,7 +235,7 @@ def test_valid_multiple_choice_json():
 def test_short_answer_regression_exact_three_keys(questions):
     parsed = generator.parse_questions(json.dumps(questions), {3})
     assert len(parsed) == 5
-    for item in parsed:
+    for item in parsed[:3]:
         assert set(item.keys()) == {"question", "question_type", "source_page"}
 
 
@@ -264,4 +280,35 @@ def test_mcq_malformed_response_retried_once(client):
     ]
     result = generator.generate_questions([{"page": 3, "text": "Notes"}])
     assert result == good_mcqs
+    assert client.models.generate_content.call_count == 2
+
+
+def test_rejects_all_short_answer_batch():
+    all_short = [
+        {
+            "question": f"Explain concept {i}.",
+            "question_type": "short_answer",
+            "source_page": 3,
+        }
+        for i in range(5)
+    ]
+    with pytest.raises(generator.QuestionGenerationError, match="multiple_choice"):
+        generator.parse_questions(json.dumps(all_short), {3})
+
+
+def test_all_short_answer_batch_retried_once(client, questions):
+    all_short = [
+        {
+            "question": f"Explain concept {i}.",
+            "question_type": "short_answer",
+            "source_page": 3,
+        }
+        for i in range(5)
+    ]
+    client.models.generate_content.side_effect = [
+        SimpleNamespace(text=json.dumps(all_short)),
+        SimpleNamespace(text=json.dumps(questions)),
+    ]
+    result = generator.generate_questions([{"page": 3, "text": "Notes"}])
+    assert result == questions
     assert client.models.generate_content.call_count == 2
