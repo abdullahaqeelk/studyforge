@@ -65,11 +65,17 @@ LMS; each sprint starts exactly two weeks before its deliverable is due.
 |-------|-------|-----|-------------|
 | Sprint 0 | 21 Sep 2026 | 11 Oct 2026 | P-1 Project Initialization (due 27 Sep) |
 | Sprint 1 | Mon 12 Oct 2026 | Fri 23 Oct 2026 | P-2 Sprint 1 Execution & Agile Artifacts (submit by 25 Oct) |
-| Sprint 2 | Sat 07 Nov 2026 | Mon 16 Nov 2026 | — |
-| Sprint 3 | Mon 09 Nov 2026 | Sun 22 Nov 2026 | — |
-| Sprint 4 | Mon 23 Nov 2026 | Sun 06 Dec 2026 | — |
+| Sprint 2 | Sat 07 Nov 2026 | Mon 16 Nov 2026 | — (closed 15 Nov) |
+| Sprint 3 | Mon 16 Nov 2026 | Thu 26 Nov 2026 | — (closed 25 Nov) |
+| Sprint 4 | Fri 27 Nov 2026 | Sun 06 Dec 2026 | — |
 | Report | 07 Dec 2026 | 13 Dec 2026 | P-3 Final Project Report |
 | Demo | 14 Dec 2026 | 20 Dec 2026 | P-4 Final Demo & Viva |
+> Dates in this table are taken from the Jira board, which is the system of
+> record. The Sprint 3 row previously read 9–22 November and disagreed with
+> Jira for the whole iteration; it was corrected at sprint close. Sprints 2
+> to 4 run ten days rather than two weeks — see the cadence note in
+> `docs/sprint-2-backlog.md`.
+
 Sprint 0 extends beyond the P-1 submission to cover team environment setup:
 Python and Git installation for all members, SSH access configuration, GitHub
 collaborator onboarding, and Jira account provisioning. Sprint 1 development
