@@ -96,8 +96,8 @@ board automatically.
 
 ## Status
 
-**Sprint 2 complete** (7–16 November 2026) — 16 of 16 points delivered, closed
-one day early. **Sprint 3 begins 17 November.**
+**Sprint 3 complete** (16–26 November 2026) — 16 of 16 points delivered, closed
+one day early. **Sprint 4 begins 27 November.**
 
 Delivered and running on `main`:
 
@@ -114,15 +114,25 @@ Delivered and running on `main`:
 | SF-11 | Retrieval-augmented generation over the student's own material |
 | SF-12 | Source citation and grounding validation |
 | SF-13 | Topic tagging and categorisation |
+| SF-14 | Multiple-choice generation and local answer evaluation |
+| SF-15 | Free-text answer grading against retrieved source passages |
+| SF-16 | Targeted feedback explaining what an answer missed |
+| SF-17 | Grounding and hallucination test suite across every generative path |
 
-212 automated tests. Every generated question is validated against a retrieved
+333 automated tests. Every generated question is validated against a retrieved
 passage from its cited page and carries the supporting quotation; questions
 that cannot be supported are shown with an explicit warning rather than
 presented as verified. See [docs/grounding-validation.md](docs/grounding-validation.md).
 
-**Sprint 3 — grading and evaluation** (17–26 November 2026): answer evaluation
-(SF-14, SF-15), targeted feedback (SF-16) and an automated grounding and
-hallucination test suite (SF-17).
+A student can now upload a document, receive grounded questions in short-answer
+and multiple-choice form, submit an answer, have it marked against the source
+material, and read an explanation of what the answer missed. Every generative
+path is asserted against the grounding contract automatically — see
+[tests/test_grounding_contract.py](tests/test_grounding_contract.py).
+
+**Sprint 4 — adaptive practice** (27 November – 6 December 2026): per-topic
+performance tracking and selection of what to serve next, connecting topic
+tagging (SF-13) to grading (SF-15).
 
 Live task status: [Jira board](https://abdullahaqeelk.atlassian.net/jira/software/projects/SF/boards/2)
 
@@ -131,4 +141,6 @@ Sprint records:
 [Sprint 1 retrospective](docs/sprint-1-retrospective.md) ·
 [Sprint 2 backlog](docs/sprint-2-backlog.md) ·
 [Sprint 2 retrospective](docs/sprint-2-retrospective.md) ·
+[Sprint 3 backlog](docs/sprint-3-backlog.md) ·
+[Sprint 3 retrospective](docs/sprint-3-retrospective.md) ·
 [schedule to P-3](docs/sprint-schedule.md)
