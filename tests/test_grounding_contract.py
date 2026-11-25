@@ -30,7 +30,7 @@ import pytest
 
 import topics
 import vector_store
-from agents import feedback, grounding_validator
+from agents import answer_grader, feedback, grounding_validator
 from agents.feedback import FeedbackError
 from agents.question_generator import QuestionGenerationError, parse_questions
 from topics import TopicTaggingError
@@ -47,7 +47,7 @@ GENERATIVE_PATHS = {
     "grounding_validation": "agents/grounding_validator.py",
     "topics": "topics.py",
     "feedback": "agents/feedback.py",
-    # "grading": "agents/answer_grading.py",   # SF-15 — add when it merges
+    "grading": "agents/answer_grader.py",
 }
 
 SOURCE_PAGE = 3
@@ -155,6 +155,19 @@ def test_grounding_validation_rejects_evidence_from_an_unsent_chunk(monkeypatch)
     assert grounding_validator.validate_grounding(items, CHUNKS)[0]["grounded"] is False
 
 
+def test_grading_rejects_a_point_citing_an_unsent_chunk(monkeypatch):
+    """SF-15. A rubric point crediting a passage the grader never saw is not evidence."""
+    monkeypatch.setattr(vector_store, "_embed_query", lambda t: [1.0, 0.0])
+    store = {"format": 1, "document_id": "d", "source_name": "d.pdf",
+             "embedding_model": "gemini-embedding-001",
+             "chunks": [dict(CHUNKS[0])]}
+    stub_client(answer_grader, monkeypatch, json.dumps({
+        "covered": [], "missed": [{"chunk_id": 999, "point": "invented",
+                                   "source_quote": SUPPLIED_TEXT, "weight": 5}]}))
+    with pytest.raises(answer_grader.GradingError):
+        answer_grader.grade_answer("Does UDP guarantee delivery?", "No.", SOURCE_PAGE, store)
+
+
 def test_topics_reject_a_label_for_a_chunk_that_was_never_sent():
     """SF-13. A label is a claim about a passage; it needs a passage to be about."""
     body = json.dumps([{"chunk_id": 0, "topics": ["Transport Layer"]},
@@ -204,6 +217,7 @@ def test_feedback_is_withheld_when_nothing_was_retrieved(monkeypatch):
     (grounding_validator, "PROMPT_FILE"),
     (topics, "PROMPT_FILE"),
     (feedback, "PROMPT_FILE"),
+    (answer_grader, "PROMPT_FILE"),
 ])
 def test_every_path_instructs_from_a_versioned_prompt_file(module, prompt_attr):
     """The instruction channel is a file under version control, never model output."""
